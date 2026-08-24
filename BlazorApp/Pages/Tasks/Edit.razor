@@ -1,0 +1,125 @@
+﻿@page "/tasks/edit/{Id:guid}"
+
+@inject BlazorApp.Services.ITaskApiClient TaskClient
+@inject NavigationManager Navigation
+
+<PageTitle>Edit task</PageTitle>
+
+<h1 class="mb-4">Edit task</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading task...</em></p>
+}
+else if (notFound)
+{
+    <div class="alert alert-warning" role="alert">
+        The requested task could not be found.
+    </div>
+
+    <a class="btn btn-outline-primary" href="/tasks">
+        Return to tasks
+    </a>
+}
+else if (loadError is not null)
+{
+    <div class="alert alert-danger" role="alert">
+        @loadError
+    </div>
+}
+else if (model is not null)
+{
+    @if (saveError is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            @saveError
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <TaskForm Model="@model"
+                      SubmitText="Save changes"
+                      IsSaving="@isSaving"
+                      OnSubmit="@UpdateTask" />
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private SaveTodoItemRequest? model;
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool notFound;
+
+    private string? loadError;
+    private string? saveError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        notFound = false;
+        loadError = null;
+
+        try
+        {
+            var task = await TaskClient.GetAsync(Id);
+
+            model = new SaveTodoItemRequest
+            {
+                Title = task.Title,
+                Description = task.Description,
+                DueAt = task.DueAt,
+                Priority = task.Priority
+            };
+        }
+        catch (HttpRequestException ex)
+            when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            notFound = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.Error.WriteLine(ex);
+            loadError = "The task could not be loaded.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateTask(
+        SaveTodoItemRequest request)
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        isSaving = true;
+        saveError = null;
+
+        try
+        {
+            await TaskClient.UpdateAsync(Id, request);
+
+            Navigation.NavigateTo("/tasks");
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.Error.WriteLine(ex);
+
+            saveError =
+                "The task could not be updated. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

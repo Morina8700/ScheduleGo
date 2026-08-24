@@ -1,0 +1,345 @@
+@page "/tasks"
+
+@inject BlazorApp.Services.ITaskApiClient TaskClient
+
+<PageTitle>Tasks · ScheduleGo</PageTitle>
+
+<section class="tasks-page">
+    <div class="tasks-heading">
+        <h1>Task List</h1>
+
+        <button class="primary-action" type="button" @onclick="OpenCreate">
+            <span aria-hidden="true">+</span>
+            Add Task
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="status-message" role="status">Loading tasks…</div>
+    }
+    else if (loadError is not null)
+    {
+        <div class="status-message error" role="alert">@loadError</div>
+    }
+    else
+    {
+        @if (actionError is not null)
+        {
+            <div class="status-message error action-error" role="alert">@actionError</div>
+        }
+
+        <div class="tasks-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Due Date</th>
+                            <th>Priority</th>
+                            <th>Completed</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (tasks.Count == 0)
+                        {
+                            <tr>
+                                <td class="empty-state" colspan="7">You don't have any tasks yet.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var task in tasks)
+                            {
+                                <tr>
+                                    <td><code>@ShortId(task.Id)</code></td>
+                                    <td><strong class="@(task.IsCompleted ? "is-complete" : null)">@task.Title</strong></td>
+                                    <td><span class="description" title="@task.Description">@(string.IsNullOrWhiteSpace(task.Description) ? "—" : task.Description)</span></td>
+                                    <td class="date-cell">@(task.DueAt?.ToString("MMM d, yyyy") ?? "—")</td>
+                                    <td><span class="priority priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
+                                    <td>
+                                        <button class="task-switch @(task.IsCompleted ? "is-on" : null)"
+                                                type="button"
+                                                role="switch"
+                                                aria-checked="@task.IsCompleted"
+                                                aria-label="Toggle completion for @task.Title"
+                                                @onclick="() => SetCompleted(task, !task.IsCompleted)">
+                                            <span></span>
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <button type="button" aria-label="Edit @task.Title" @onclick="() => OpenEdit(task)">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 6.5 17.5 10.5M4 20l4.2-1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /></svg>
+                                            </button>
+                                            <button type="button" aria-label="Delete @task.Title" @onclick="() => OpenDelete(task)">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer>@tasks.Count @(tasks.Count == 1 ? "task" : "tasks")</footer>
+        </div>
+    }
+</section>
+
+@if (editorMode is not null)
+{
+    <div class="modal-layer" role="presentation" @onclick="CloseEditor">
+        <section class="event-modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title" @onclick:stopPropagation>
+            <header>
+                <h2 id="task-modal-title">@(editorMode == TaskEditorMode.Create ? "New Task" : "Edit Task")</h2>
+                <p>@(editorMode == TaskEditorMode.Create ? "Fill in the details for your new task." : "Update the details below.")</p>
+            </header>
+
+            @if (editorError is not null)
+            {
+                <div class="modal-error" role="alert">@editorError</div>
+            }
+
+            <EditForm Model="@editor" OnValidSubmit="SaveEditor">
+                <DataAnnotationsValidator />
+
+                <div class="field">
+                    <label for="task-title">Title</label>
+                    <InputText id="task-title" placeholder="e.g. Prepare meeting notes" @bind-Value="editor.Title" />
+                    <ValidationMessage For="@(() => editor.Title)" />
+                </div>
+
+                <div class="field">
+                    <label for="task-description">Description</label>
+                    <InputTextArea id="task-description" rows="4" placeholder="Brief description (optional)" @bind-Value="editor.Description" />
+                    <ValidationMessage For="@(() => editor.Description)" />
+                </div>
+
+                <div class="date-toggle-row">
+                    <div class="field">
+                        <label for="task-due-date">Due Date</label>
+                        <InputDate id="task-due-date"
+                                   Type="InputDateType.DateTimeLocal"
+                                   @bind-Value="editor.DueAt" />
+                        <ValidationMessage For="@(() => editor.DueAt)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="task-priority">Priority</label>
+                        <InputSelect id="task-priority" @bind-Value="editor.Priority">
+                            <option value="@TaskPriority.Low">Low</option>
+                            <option value="@TaskPriority.Normal">Normal</option>
+                            <option value="@TaskPriority.High">High</option>
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="secondary-action" type="button" @onclick="CloseEditor">Cancel</button>
+                    <button class="primary-action" type="submit" disabled="@isSaving">
+                        @(isSaving ? "Saving…" : editorMode == TaskEditorMode.Create ? "Add Task" : "Save Changes")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (pendingDelete is not null)
+{
+    <div class="modal-layer" role="presentation" @onclick="CloseDelete">
+        <section class="delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" @onclick:stopPropagation>
+            <div class="delete-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
+            </div>
+            <h2 id="delete-title">Delete task?</h2>
+            <p><strong>@pendingDelete.Title</strong> will be permanently removed.</p>
+            @if (deleteError is not null)
+            {
+                <div class="modal-error" role="alert">@deleteError</div>
+            }
+            <div class="modal-actions">
+                <button class="secondary-action" type="button" @onclick="CloseDelete">Cancel</button>
+                <button class="danger-action" type="button" disabled="@isDeleting" @onclick="DeleteTask">
+                    @(isDeleting ? "Deleting…" : "Delete")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private List<TodoItemDto> tasks = [];
+
+    private bool isLoading = true;
+    private string? loadError;
+    private string? actionError;
+    private TaskEditorMode? editorMode;
+    private TodoItemDto? editingTask;
+    private SaveTodoItemRequest editor = new();
+    private string? editorError;
+    private bool isSaving;
+    private TodoItemDto? pendingDelete;
+    private string? deleteError;
+    private bool isDeleting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await TaskClient.GetAllAsync();
+            tasks = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            loadError = "The tasks could not be loaded.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SetCompleted(TodoItemDto task, bool completed)
+    {
+        actionError = null;
+        var previousValue = task.IsCompleted;
+
+        try
+        {
+            await TaskClient.SetCompletedAsync(task.Id, completed);
+            task.IsCompleted = completed;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            task.IsCompleted = previousValue;
+            actionError = "The task could not be updated.";
+        }
+    }
+
+    private void OpenCreate()
+    {
+        editingTask = null;
+        editor = new SaveTodoItemRequest();
+        editorMode = TaskEditorMode.Create;
+        editorError = null;
+    }
+
+    private void OpenEdit(TodoItemDto task)
+    {
+        editingTask = task;
+        editor = new SaveTodoItemRequest
+        {
+            Title = task.Title,
+            Description = task.Description,
+            DueAt = task.DueAt,
+            Priority = task.Priority
+        };
+        editorMode = TaskEditorMode.Edit;
+        editorError = null;
+    }
+
+    private void CloseEditor()
+    {
+        if (!isSaving)
+        {
+            editorMode = null;
+            editingTask = null;
+            editorError = null;
+        }
+    }
+
+    private async Task SaveEditor()
+    {
+        if (editorMode is null || (editorMode == TaskEditorMode.Edit && editingTask is null))
+        {
+            return;
+        }
+
+        isSaving = true;
+        editorError = null;
+
+        try
+        {
+            if (editorMode == TaskEditorMode.Create)
+            {
+                var created = await TaskClient.CreateAsync(editor);
+                tasks.Insert(0, created);
+            }
+            else
+            {
+                var updated = await TaskClient.UpdateAsync(editingTask!.Id, editor);
+                editingTask.Title = updated.Title;
+                editingTask.Description = updated.Description;
+                editingTask.DueAt = updated.DueAt;
+                editingTask.Priority = updated.Priority;
+                editingTask.IsCompleted = updated.IsCompleted;
+            }
+
+            editorMode = null;
+            editingTask = null;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            editorError = "The task could not be saved. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void OpenDelete(TodoItemDto task)
+    {
+        pendingDelete = task;
+        deleteError = null;
+    }
+
+    private void CloseDelete()
+    {
+        if (!isDeleting)
+        {
+            pendingDelete = null;
+            deleteError = null;
+        }
+    }
+
+    private async Task DeleteTask()
+    {
+        if (pendingDelete is null)
+        {
+            return;
+        }
+
+        isDeleting = true;
+        deleteError = null;
+
+        try
+        {
+            await TaskClient.DeleteAsync(pendingDelete.Id);
+            tasks.Remove(pendingDelete);
+            pendingDelete = null;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            deleteError = "The task could not be deleted. Please try again.";
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+
+    private enum TaskEditorMode { Create, Edit }
+}

@@ -1,0 +1,61 @@
+﻿@page "/tasks/create"
+
+@inject BlazorApp.Services.ITaskApiClient TaskClient
+@inject NavigationManager Navigation
+
+<PageTitle>Create task</PageTitle>
+
+<h1 class="mb-4">Create task</h1>
+
+@if (errorMessage is not null)
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <TaskForm Model="@model"
+                  SubmitText="Create task"
+                  IsSaving="@isSaving"
+                  OnSubmit="@CreateTask" />
+    </div>
+</div>
+
+@code {
+    private readonly SaveTodoItemRequest model = new();
+
+    private bool isSaving;
+    private string? errorMessage;
+
+    private async Task CreateTask(
+        SaveTodoItemRequest request)
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            await TaskClient.CreateAsync(request);
+
+            Navigation.NavigateTo("/tasks");
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.Error.WriteLine(ex);
+
+            errorMessage =
+                "The task could not be created. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

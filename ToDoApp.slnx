@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BlazorApp/BlazorApp.csproj" Id="d53f3117-c745-446f-8c71-a797bae964d2" />
+  <Project Path="WebApi/WebApi.csproj" />
+</Solution>
