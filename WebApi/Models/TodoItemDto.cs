@@ -11,5 +11,9 @@ namespace WebApi.Models;
         public bool IsCompleted { get; set; }
         public TaskPriority Priority { get; set; }
         public DateTime CreatedAt { get; set; }
+
+    public Guid? EventId { get; set; }
+    public string? EventTitle { get; set; }
+    public DateTime? EventStart { get; set; }
 }
 

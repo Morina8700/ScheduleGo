@@ -26,7 +26,11 @@ public sealed class TasksController(
                 DueAt = task.DueAt,
                 IsCompleted = task.IsCompleted,
                 Priority = task.Priority,
-                CreatedAt = task.CreatedAt
+                CreatedAt = task.CreatedAt,
+
+                EventId = task.EventId,
+                EventTitle = task.Event != null ? task.Event.Title : null,
+                EventStart = task.Event != null ? task.Event.Start : null
             })
             .ToListAsync();
 
@@ -38,6 +42,7 @@ public sealed class TasksController(
     {
         var task = await context.ToDoItems
             .AsNoTracking()
+            .Include(task => task.Event)
             .FirstOrDefaultAsync(task => task.Id == id);
 
         if (task is null)
@@ -52,11 +57,25 @@ public sealed class TasksController(
     public async Task<ActionResult<TodoItemDto>> CreateTask(
         SaveTodoItemRequest request)
     {
+        Event? linkedEvent = null;
+
+        if (request.EventId.HasValue)
+        {
+            linkedEvent = await context.Events.FindAsync(request.EventId.Value);
+
+            if (linkedEvent is null)
+            {
+                return BadRequest("The selected event does not exist.");
+            }
+        }
+
         var task = new ToDoItem
         {
             Title = request.Title,
             Description = request.Description,
             DueAt = request.DueAt,
+            EventId = request.EventId,
+            Event = linkedEvent,
             Priority = request.Priority,
             IsCompleted = false,
             CreatedAt = DateTime.UtcNow
@@ -71,6 +90,7 @@ public sealed class TasksController(
             nameof(GetTask),
             new { id = task.Id },
             dto);
+
     }
 
     [HttpPut("{id:guid}")]
@@ -78,6 +98,17 @@ public sealed class TasksController(
         Guid id,
         SaveTodoItemRequest request)
     {
+        Event? linkedEvent = null;
+
+        if (request.EventId.HasValue)
+        {
+            linkedEvent = await context.Events.FindAsync(request.EventId.Value);
+
+            if (linkedEvent is null)
+            {
+                return BadRequest("The selected event does not exist.");
+            }
+        }
         var task = await context.ToDoItems.FindAsync(id);
 
         if (task is null)
@@ -89,6 +120,8 @@ public sealed class TasksController(
         task.Description = request.Description;
         task.DueAt = request.DueAt;
         task.Priority = request.Priority;
+        task.EventId = request.EventId;
+        task.Event = linkedEvent;
 
         await context.SaveChangesAsync();
 
@@ -140,7 +173,11 @@ public sealed class TasksController(
             DueAt = task.DueAt,
             IsCompleted = task.IsCompleted,
             Priority = task.Priority,
-            CreatedAt = task.CreatedAt
+            CreatedAt = task.CreatedAt,
+
+            EventId = task.EventId,
+            EventTitle = task.Event?.Title,
+            EventStart = task.Event?.Start
         };
     }
 }

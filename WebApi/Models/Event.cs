@@ -9,5 +9,7 @@
         public DateTime End { get; set; }
         public bool AllDay { get; set; }
         public DateTime CreatedAt {  get; set; }
+
+        public ICollection<ToDoItem> Tasks { get; set; } = [];
     }
 }

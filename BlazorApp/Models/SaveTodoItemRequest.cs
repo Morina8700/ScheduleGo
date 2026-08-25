@@ -14,4 +14,5 @@ public class SaveTodoItemRequest
     public DateTime? DueAt { get; set; }
 
     public TaskPriority Priority { get; set; } = TaskPriority.Normal;
+    public Guid? EventId { get; set; }
 }

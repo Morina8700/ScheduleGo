@@ -1,6 +1,7 @@
 @page "/tasks"
 
 @inject BlazorApp.Services.ITaskApiClient TaskClient
+@inject HttpClient Http
 
 <PageTitle>Tasks · ScheduleGo</PageTitle>
 
@@ -38,6 +39,7 @@
                             <th>Title</th>
                             <th>Description</th>
                             <th>Due Date</th>
+                            <th>Event</th>
                             <th>Priority</th>
                             <th>Completed</th>
                             <th>Action</th>
@@ -47,7 +49,7 @@
                         @if (tasks.Count == 0)
                         {
                             <tr>
-                                <td class="empty-state" colspan="7">You don't have any tasks yet.</td>
+                                <td class="empty-state" colspan="8">You don't have any tasks yet.</td>
                             </tr>
                         }
                         else
@@ -59,6 +61,16 @@
                                     <td><strong class="@(task.IsCompleted ? "is-complete" : null)">@task.Title</strong></td>
                                     <td><span class="description" title="@task.Description">@(string.IsNullOrWhiteSpace(task.Description) ? "—" : task.Description)</span></td>
                                     <td class="date-cell">@(task.DueAt?.ToString("MMM d, yyyy") ?? "—")</td>
+                                    <td>
+                                        @if (task.EventId.HasValue)
+                                        {
+                                            <span>@task.EventTitle</span>
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </td>
                                     <td><span class="priority priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
                                     <td>
                                         <button class="task-switch @(task.IsCompleted ? "is-on" : null)"
@@ -138,7 +150,22 @@
                         </InputSelect>
                     </div>
                 </div>
+                <div class="field">
+                    <label for="task-event">Related event</label>
 
+                    <InputSelect id="task-event"
+                                 @bind-Value="editor.EventId">
+
+                        <option value="">No related event</option>
+
+                        @foreach (var evt in events)
+                        {
+                            <option value="@evt.Id">
+                                @evt.Title — @evt.Start.ToString("MMM d, yyyy")
+                            </option>
+                        }
+                    </InputSelect>
+                </div>
                 <div class="modal-actions">
                     <button class="secondary-action" type="button" @onclick="CloseEditor">Cancel</button>
                     <button class="primary-action" type="submit" disabled="@isSaving">
@@ -175,7 +202,7 @@
 
 @code {
     private List<TodoItemDto> tasks = [];
-
+    private List<Event> events = [];
     private bool isLoading = true;
     private string? loadError;
     private string? actionError;
@@ -192,13 +219,16 @@
     {
         try
         {
-            var result = await TaskClient.GetAllAsync();
-            tasks = result.ToList();
+            var taskResult = await TaskClient.GetAllAsync();
+            tasks = taskResult.ToList();
+
+            events = await Http.GetFromJsonAsync<List<Event>>(
+                "api/Events") ?? [];
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            loadError = "The tasks could not be loaded.";
+            loadError = "The tasks and events could not be loaded.";
         }
         finally
         {
@@ -240,7 +270,8 @@
             Title = task.Title,
             Description = task.Description,
             DueAt = task.DueAt,
-            Priority = task.Priority
+            Priority = task.Priority,
+            EventId = task.EventId
         };
         editorMode = TaskEditorMode.Edit;
         editorError = null;
@@ -281,6 +312,9 @@
                 editingTask.DueAt = updated.DueAt;
                 editingTask.Priority = updated.Priority;
                 editingTask.IsCompleted = updated.IsCompleted;
+                editingTask.EventId = updated.EventId;
+                editingTask.EventTitle = updated.EventTitle;
+                editingTask.EventStart = updated.EventStart;
             }
 
             editorMode = null;

@@ -12,6 +12,10 @@
 
         public TaskPriority Priority { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public Guid? EventId { get; set; }
+
+        public Event? Event { get; set; }
     }
 
     public enum TaskPriority
