@@ -85,8 +85,9 @@
 				Errors = jsonResponse?["errors"] ?? new JsonObject();
 			}
 
-			catch(Exception ex)
+			catch (System.Text.Json.JsonException ex)
 			{
+				Console.Error.WriteLine($"The validation response was not valid JSON: {ex.Message}");
 			}
 		}
 	}

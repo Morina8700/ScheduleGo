@@ -2,6 +2,11 @@
     width: 100%;
 }
 
+.page-intro {
+    margin: 8px 0 0;
+    color: #8490a5;
+}
+
 .tasks-heading {
     display: flex;
     align-items: center;
@@ -61,6 +66,52 @@ h1 {
     border: 1px solid #e4e9f2;
     border-radius: 24px;
     box-shadow: 0 18px 45px rgba(37, 55, 94, .07);
+}
+
+.tasks-page ::deep .primary-action {
+    min-height: 52px;
+    padding: 0 24px;
+    color: #fff;
+    background: #3155d8;
+    border: 0;
+    border-radius: 15px;
+    box-shadow: 0 10px 24px rgba(49, 85, 216, .2);
+    font-weight: 700;
+}
+
+.tasks-page ::deep .primary-action:hover {
+    color: #fff;
+    background: #2849c2;
+}
+
+.tasks-page ::deep .rz-data-grid {
+    border: 0;
+    border-radius: 24px;
+}
+
+.tasks-page ::deep .rz-grid-table thead th {
+    color: #68758b;
+    background: #f8fafc;
+}
+
+.tasks-page ::deep .rz-grid-table td {
+    color: #66738a;
+}
+
+.tasks-page ::deep .rz-paginator {
+    padding: 16px 22px;
+    border-top: 1px solid #eef1f6;
+}
+
+.grid-actions {
+    display: inline-flex;
+    justify-content: center;
+    gap: 2px;
+}
+
+.tasks-page ::deep .modal-actions .rz-button {
+    width: 100%;
+    min-height: 52px;
 }
 
 .table-scroll {

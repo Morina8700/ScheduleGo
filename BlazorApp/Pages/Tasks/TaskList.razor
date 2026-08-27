@@ -2,103 +2,91 @@
 
 @inject BlazorApp.Services.ITaskApiClient TaskClient
 @inject HttpClient Http
+@inject DialogService DialogService
+@inject NotificationService NotificationService
 
 <PageTitle>Tasks · ScheduleGo</PageTitle>
 
 <section class="tasks-page">
     <div class="tasks-heading">
-        <h1>Tasks</h1>
+        <div>
+            <h1>Tasks</h1>
+            <p class="page-intro">Sort, filter, and manage everything on your list.</p>
+        </div>
 
-        <button class="primary-action" type="button" @onclick="OpenCreate">
-            <span aria-hidden="true">+</span>
-            Add Task
-        </button>
+        <RadzenButton Text="Add Task" Icon="add" Click="@OpenCreate" Class="primary-action" />
     </div>
 
-    @if (isLoading)
-    {
-        <div class="status-message" role="status">Loading tasks…</div>
-    }
-    else if (loadError is not null)
+    @if (loadError is not null)
     {
         <div class="status-message error" role="alert">@loadError</div>
     }
     else
     {
-        @if (actionError is not null)
-        {
-            <div class="status-message error action-error" role="alert">@actionError</div>
-        }
-
         <div class="tasks-card">
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Description</th>
-                            <th>Due Date</th>
-                            <th>Event</th>
-                            <th>Priority</th>
-                            <th>Completed</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (tasks.Count == 0)
-                        {
-                            <tr>
-                                <td class="empty-state" colspan="8">You don't have any tasks yet.</td>
-                            </tr>
-                        }
-                        else
-                        {
-                            @foreach (var task in tasks)
-                            {
-                                <tr>
-                                    <td><code>@ShortId(task.Id)</code></td>
-                                    <td><strong class="@(task.IsCompleted ? "is-complete" : null)">@task.Title</strong></td>
-                                    <td><span class="description" title="@task.Description">@(string.IsNullOrWhiteSpace(task.Description) ? "—" : task.Description)</span></td>
-                                    <td class="date-cell">@(task.DueAt?.ToString("MMM d, yyyy") ?? "—")</td>
-                                    <td>
-                                        @if (task.EventId.HasValue)
-                                        {
-                                            <span>@task.EventTitle</span>
-                                        }
-                                        else
-                                        {
-                                            <span>—</span>
-                                        }
-                                    </td>
-                                    <td><span class="priority priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
-                                    <td>
-                                        <button class="task-switch @(task.IsCompleted ? "is-on" : null)"
-                                                type="button"
-                                                role="switch"
-                                                aria-checked="@task.IsCompleted"
-                                                aria-label="Toggle completion for @task.Title"
-                                                @onclick="() => SetCompleted(task, !task.IsCompleted)">
-                                            <span></span>
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <div class="row-actions">
-                                            <button type="button" aria-label="Edit @task.Title" @onclick="() => OpenEdit(task)">
-                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 6.5 17.5 10.5M4 20l4.2-1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /></svg>
-                                            </button>
-                                            <button type="button" aria-label="Delete @task.Title" @onclick="() => OpenDelete(task)">
-                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer>@tasks.Count @(tasks.Count == 1 ? "task" : "tasks")</footer>
+            <RadzenDataGrid @ref="tasksGrid" Data="@tasks" TItem="TodoItemDto" IsLoading="@isLoading"
+                            AllowFiltering="true" FilterMode="FilterMode.Simple"
+                            AllowSorting="true" AllowPaging="true" AllowColumnResize="true"
+                            PageSize="10" PageSizeOptions="@(new int[] { 5, 10, 20 })"
+                            PagerHorizontalAlign="HorizontalAlign.Right"
+                            EmptyText="You don't have any tasks yet." Class="tasks-grid">
+                <Columns>
+                    <RadzenDataGridColumn TItem="TodoItemDto" Title="ID" Width="125px" Filterable="false">
+                        <Template Context="task"><code>@ShortId(task.Id)</code></Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="Title" Title="Title" MinWidth="180px">
+                        <Template Context="task">
+                            <strong class="@(task.IsCompleted ? "is-complete" : null)">@task.Title</strong>
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="Description" Title="Description" MinWidth="220px">
+                        <Template Context="task">
+                            <span class="description" title="@task.Description">
+                                @(string.IsNullOrWhiteSpace(task.Description) ? "—" : task.Description)
+                            </span>
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="DueAt" Title="Due date"
+                                          FormatString="{0:MMM d, yyyy}" Width="170px" />
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="EventTitle" Title="Event" MinWidth="170px">
+                        <Template Context="task">@(task.EventTitle ?? "—")</Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="Priority" Title="Priority" Width="130px">
+                        <Template Context="task">
+                            <RadzenBadge Text="@task.Priority.ToString()"
+                                         BadgeStyle="@PriorityBadgeStyle(task.Priority)" IsPill="true" />
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Property="IsCompleted" Title="Completed"
+                                          Width="130px" Filterable="false">
+                        <Template Context="task">
+                            <RadzenSwitch TValue="bool" Value="@task.IsCompleted"
+                                          Change="@((bool value) => SetCompleted(task, value))"
+                                          aria-label="@($"Toggle completion for {task.Title}")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="TodoItemDto" Title="Actions" Width="120px"
+                                          Filterable="false" Sortable="false" TextAlign="TextAlign.Center">
+                        <Template Context="task">
+                            <div class="grid-actions">
+                                <RadzenButton Icon="edit" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
+                                              Size="ButtonSize.Medium" Click="@(() => OpenEdit(task))"
+                                              aria-label="@($"Edit {task.Title}")" />
+                                <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                                              Size="ButtonSize.Medium" Click="@(() => ConfirmDeleteTask(task))"
+                                              aria-label="@($"Delete {task.Title}")" />
+                            </div>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
         </div>
     }
 </section>
@@ -117,103 +105,68 @@
                 <div class="modal-error" role="alert">@editorError</div>
             }
 
-            <EditForm Model="@editor" OnValidSubmit="SaveEditor">
+            <EditForm Model="@editor" OnValidSubmit="@SaveEditor">
                 <DataAnnotationsValidator />
 
                 <div class="field">
                     <label for="task-title">Title</label>
-                    <InputText id="task-title" placeholder="e.g. Prepare meeting notes" @bind-Value="editor.Title" />
+                    <RadzenTextBox Name="Title" @bind-Value="@editor.Title"
+                                   Placeholder="e.g. Prepare meeting notes" Style="width: 100%" />
                     <ValidationMessage For="@(() => editor.Title)" />
                 </div>
 
                 <div class="field">
                     <label for="task-description">Description</label>
-                    <InputTextArea id="task-description" rows="4" placeholder="Brief description (optional)" @bind-Value="editor.Description" />
+                    <RadzenTextArea Name="Description" @bind-Value="@editor.Description" Rows="4"
+                                    Placeholder="Brief description (optional)" Style="width: 100%" />
                     <ValidationMessage For="@(() => editor.Description)" />
                 </div>
 
                 <div class="date-toggle-row">
                     <div class="field">
                         <label for="task-due-date">Due Date</label>
-                        <InputDate id="task-due-date"
-                                   Type="InputDateType.DateTimeLocal"
-                                   @bind-Value="editor.DueAt" />
+                        <RadzenDatePicker TValue="DateTime?" Name="DueAt" @bind-Value="@editor.DueAt"
+                                          ShowTime="true" DateFormat="MMM d, yyyy h:mm tt" Style="width: 100%" />
                         <ValidationMessage For="@(() => editor.DueAt)" />
                     </div>
 
                     <div class="field">
                         <label for="task-priority">Priority</label>
-                        <InputSelect id="task-priority" @bind-Value="editor.Priority">
-                            <option value="@TaskPriority.Low">Low</option>
-                            <option value="@TaskPriority.Normal">Normal</option>
-                            <option value="@TaskPriority.High">High</option>
-                        </InputSelect>
+                        <RadzenDropDown TValue="TaskPriority" Name="Priority" @bind-Value="@editor.Priority"
+                                        Data="@priorityOptions" Style="width: 100%" />
                     </div>
                 </div>
+
                 <div class="field">
                     <label for="task-event">Related event</label>
-
-                    <InputSelect id="task-event"
-                                 @bind-Value="editor.EventId">
-
-                        <option value="">No related event</option>
-
-                        @foreach (var evt in events)
-                        {
-                            <option value="@evt.Id">
-                                @evt.Title — @evt.Start.ToString("MMM d, yyyy")
-                            </option>
-                        }
-                    </InputSelect>
+                    <RadzenDropDown TValue="Guid?" Name="EventId" @bind-Value="@editor.EventId"
+                                    Data="@events" TextProperty="Title" ValueProperty="Id"
+                                    AllowClear="true" Placeholder="No related event" Style="width: 100%" />
                 </div>
+
                 <div class="modal-actions">
-                    <button class="secondary-action" type="button" @onclick="CloseEditor">Cancel</button>
-                    <button class="primary-action" type="submit" disabled="@isSaving">
-                        @(isSaving ? "Saving…" : editorMode == TaskEditorMode.Create ? "Add Task" : "Save Changes")
-                    </button>
+                    <RadzenButton Text="Cancel" ButtonType="ButtonType.Button" ButtonStyle="ButtonStyle.Light"
+                                  Variant="Variant.Outlined" Click="@CloseEditor" Disabled="@isSaving" />
+                    <RadzenButton Text="@(editorMode == TaskEditorMode.Create ? "Add Task" : "Save Changes")"
+                                  Icon="save" ButtonType="ButtonType.Submit" Disabled="@isSaving" IsBusy="@isSaving" />
                 </div>
             </EditForm>
         </section>
     </div>
 }
 
-@if (pendingDelete is not null)
-{
-    <div class="modal-layer" role="presentation" @onclick="CloseDelete">
-        <section class="delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" @onclick:stopPropagation>
-            <div class="delete-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
-            </div>
-            <h2 id="delete-title">Delete task?</h2>
-            <p><strong>@pendingDelete.Title</strong> will be permanently removed.</p>
-            @if (deleteError is not null)
-            {
-                <div class="modal-error" role="alert">@deleteError</div>
-            }
-            <div class="modal-actions">
-                <button class="secondary-action" type="button" @onclick="CloseDelete">Cancel</button>
-                <button class="danger-action" type="button" disabled="@isDeleting" @onclick="DeleteTask">
-                    @(isDeleting ? "Deleting…" : "Delete")
-                </button>
-            </div>
-        </section>
-    </div>
-}
-
 @code {
+    private readonly TaskPriority[] priorityOptions = Enum.GetValues<TaskPriority>();
+    private RadzenDataGrid<TodoItemDto>? tasksGrid;
     private List<TodoItemDto> tasks = [];
     private List<Event> events = [];
     private bool isLoading = true;
     private string? loadError;
-    private string? actionError;
     private TaskEditorMode? editorMode;
     private TodoItemDto? editingTask;
     private SaveTodoItemRequest editor = new();
     private string? editorError;
     private bool isSaving;
-    private TodoItemDto? pendingDelete;
-    private string? deleteError;
-    private bool isDeleting;
 
     protected override async Task OnInitializedAsync()
     {
@@ -221,9 +174,7 @@
         {
             var taskResult = await TaskClient.GetAllAsync();
             tasks = taskResult.ToList();
-
-            events = await Http.GetFromJsonAsync<List<Event>>(
-                "api/Events") ?? [];
+            events = await Http.GetFromJsonAsync<List<Event>>("api/Events") ?? [];
         }
         catch (Exception ex)
         {
@@ -238,19 +189,20 @@
 
     private async Task SetCompleted(TodoItemDto task, bool completed)
     {
-        actionError = null;
         var previousValue = task.IsCompleted;
-
         try
         {
-            await TaskClient.SetCompletedAsync(task.Id, completed);
             task.IsCompleted = completed;
+            await TaskClient.SetCompletedAsync(task.Id, completed);
+            await ReloadGridAsync();
+            NotificationService.Notify(NotificationSeverity.Success,
+                completed ? "Task completed" : "Task reopened", task.Title, 2500);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
             task.IsCompleted = previousValue;
-            actionError = "The task could not be updated.";
+            NotificationService.Notify(NotificationSeverity.Error, "Update failed", "The task could not be updated.");
         }
     }
 
@@ -289,17 +241,15 @@
 
     private async Task SaveEditor()
     {
-        if (editorMode is null || (editorMode == TaskEditorMode.Edit && editingTask is null))
-        {
-            return;
-        }
+        if (editorMode is null || (editorMode == TaskEditorMode.Edit && editingTask is null)) return;
 
+        var savedMode = editorMode.Value;
         isSaving = true;
         editorError = null;
 
         try
         {
-            if (editorMode == TaskEditorMode.Create)
+            if (savedMode == TaskEditorMode.Create)
             {
                 var created = await TaskClient.CreateAsync(editor);
                 tasks.Insert(0, created);
@@ -317,8 +267,12 @@
                 editingTask.EventStart = updated.EventStart;
             }
 
+            await ReloadGridAsync();
             editorMode = null;
             editingTask = null;
+            NotificationService.Notify(NotificationSeverity.Success,
+                savedMode == TaskEditorMode.Create ? "Task added" : "Task updated",
+                "Your changes have been saved.", 3000);
         }
         catch (Exception ex)
         {
@@ -331,45 +285,38 @@
         }
     }
 
-    private void OpenDelete(TodoItemDto task)
+    private async Task ConfirmDeleteTask(TodoItemDto task)
     {
-        pendingDelete = task;
-        deleteError = null;
-    }
-
-    private void CloseDelete()
-    {
-        if (!isDeleting)
-        {
-            pendingDelete = null;
-            deleteError = null;
-        }
-    }
-
-    private async Task DeleteTask()
-    {
-        if (pendingDelete is null)
-        {
-            return;
-        }
-
-        isDeleting = true;
-        deleteError = null;
+        var confirmed = await DialogService.Confirm($"'{task.Title}' will be permanently removed.", "Delete task?",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed is not true) return;
 
         try
         {
-            await TaskClient.DeleteAsync(pendingDelete.Id);
-            tasks.Remove(pendingDelete);
-            pendingDelete = null;
+            await TaskClient.DeleteAsync(task.Id);
+            tasks.Remove(task);
+            await ReloadGridAsync();
+            NotificationService.Notify(NotificationSeverity.Success, "Task deleted", task.Title, 3000);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            deleteError = "The task could not be deleted. Please try again.";
+            NotificationService.Notify(NotificationSeverity.Error, "Delete failed", "The task could not be deleted.");
         }
-        finally
+    }
+
+    private static BadgeStyle PriorityBadgeStyle(TaskPriority priority) => priority switch
+    {
+        TaskPriority.High => BadgeStyle.Danger,
+        TaskPriority.Low => BadgeStyle.Success,
+        _ => BadgeStyle.Info
+    };
+
+    private async Task ReloadGridAsync()
+    {
+        if (tasksGrid is not null)
         {
-            isDeleting = false;
+            await tasksGrid.Reload();
         }
     }
 

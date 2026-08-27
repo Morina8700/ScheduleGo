@@ -1,75 +1,113 @@
 @page "/Events"
+
 @inject HttpClient Http
+@inject DialogService DialogService
+@inject NotificationService NotificationService
 
 <PageTitle>Events · ScheduleGo</PageTitle>
 
 <section class="events-page">
     <div class="events-heading">
-        <h1>Events</h1>
+        <div>
+            <h1>Events</h1>
+            <p class="page-intro">Switch between a searchable list and your calendar.</p>
+        </div>
 
-        <button class="primary-action" type="button" @onclick="OpenCreate">
-            <span aria-hidden="true">+</span>
-            Add Event
-        </button>
+        <div class="heading-actions">
+            <div class="view-switcher" aria-label="Event view">
+                <RadzenButton Text="List" Icon="view_list"
+                              ButtonStyle="@(activeView == EventView.List ? ButtonStyle.Primary : ButtonStyle.Light)"
+                              Variant="@(activeView == EventView.List ? Variant.Filled : Variant.Outlined)"
+                              Click="@(() => activeView = EventView.List)" />
+                <RadzenButton Text="Calendar" Icon="calendar_month"
+                              ButtonStyle="@(activeView == EventView.Calendar ? ButtonStyle.Primary : ButtonStyle.Light)"
+                              Variant="@(activeView == EventView.Calendar ? Variant.Filled : Variant.Outlined)"
+                              Click="@(() => activeView = EventView.Calendar)" />
+            </div>
+
+            <RadzenButton Text="Add Event" Icon="add" Click="@OpenCreate" Class="primary-action" />
+        </div>
     </div>
 
     @if (loadError is not null)
     {
-        <div class="status-message error" role="alert">@loadError</div>
+        <div class="status-message error" role="alert">
+            @loadError
+            <RadzenButton Text="Try again" Icon="refresh" Variant="Variant.Text" Click="@LoadEvents" />
+        </div>
     }
     else if (events is null)
     {
-        <div class="status-message" role="status">Loading events…</div>
+        <div class="status-message" role="status">
+            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+            <span>Loading events…</span>
+        </div>
+    }
+    else if (activeView == EventView.List)
+    {
+        <div class="events-card">
+            <RadzenDataGrid Data="@events" TItem="Event"
+                            AllowFiltering="true" FilterMode="FilterMode.Simple"
+                            AllowSorting="true" AllowPaging="true" AllowColumnResize="true"
+                            PageSize="10" PageSizeOptions="@(new int[] { 5, 10, 20 })"
+                            PagerHorizontalAlign="HorizontalAlign.Right"
+                            EmptyText="You don't have any events yet." Class="events-grid">
+                <Columns>
+                    <RadzenDataGridColumn TItem="Event" Title="ID" Width="125px" Filterable="false">
+                        <Template Context="evt"><code>@ShortId(evt.Id)</code></Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="Event" Property="Title" Title="Title" MinWidth="190px">
+                        <Template Context="evt"><strong>@evt.Title</strong></Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="Event" Property="Description" Title="Description" MinWidth="250px">
+                        <Template Context="evt">
+                            <span class="description" title="@evt.Description">
+                                @(string.IsNullOrWhiteSpace(evt.Description) ? "—" : evt.Description)
+                            </span>
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="Event" Property="Start" Title="Date"
+                                          FormatString="{0:MMM d, yyyy}" Width="170px" />
+
+                    <RadzenDataGridColumn TItem="Event" Property="AllDay" Title="All day"
+                                          Width="120px" Filterable="false">
+                        <Template Context="evt">
+                            <RadzenSwitch TValue="bool" Value="@evt.AllDay"
+                                          Change="@((bool value) => SetAllDay(evt, value))"
+                                          aria-label="@($"Toggle all day for {evt.Title}")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="Event" Title="Actions" Width="120px"
+                                          Filterable="false" Sortable="false" TextAlign="TextAlign.Center">
+                        <Template Context="evt">
+                            <div class="grid-actions">
+                                <RadzenButton Icon="edit" Variant="Variant.Text" ButtonStyle="ButtonStyle.Primary"
+                                              Click="@(() => OpenEdit(evt))" aria-label="@($"Edit {evt.Title}")" />
+                                <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                                              Click="@(() => ConfirmDeleteEvent(evt))" aria-label="@($"Delete {evt.Title}")" />
+                            </div>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </div>
     }
     else
     {
-        <div class="events-card">
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Description</th>
-                            <th>Date</th>
-                            <th>All Day</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var evt in events)
-                        {
-                            <tr>
-                                <td><code>@ShortId(evt.Id)</code></td>
-                                <td><strong>@evt.Title</strong></td>
-                                <td><span class="description" title="@evt.Description">@evt.Description</span></td>
-                                <td class="date-cell">@evt.Start.ToString("MMM d, yyyy")</td>
-                                <td>
-                                    <button class="event-switch @(evt.AllDay ? "is-on" : null)"
-                                            type="button"
-                                            role="switch"
-                                            aria-checked="@evt.AllDay"
-                                            aria-label="Toggle all day for @evt.Title"
-                                            @onclick="() => ToggleAllDay(evt)">
-                                        <span></span>
-                                    </button>
-                                </td>
-                                <td>
-                                    <div class="row-actions">
-                                        <button type="button" aria-label="Edit @evt.Title" @onclick="() => OpenEdit(evt)">
-                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 6.5 17.5 10.5M4 20l4.2-1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /></svg>
-                                        </button>
-                                        <button type="button" aria-label="Delete @evt.Title" @onclick="() => OpenDelete(evt)">
-                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer>@events.Count @(events.Count == 1 ? "event" : "events")</footer>
+        <div class="scheduler-card">
+            <RadzenScheduler Data="@events" TItem="Event"
+                             StartProperty="Start" EndProperty="End" TextProperty="Title"
+                             AppointmentSelect="@OnAppointmentSelect" SelectedIndex="0"
+                             Style="height: 680px;">
+                <RadzenMonthView />
+                <RadzenWeekView />
+                <RadzenDayView />
+                <RadzenAgendaView />
+            </RadzenScheduler>
         </div>
     }
 </section>
@@ -90,55 +128,33 @@
 
             <div class="field">
                 <label for="event-title">Title</label>
-                <input id="event-title" placeholder="e.g. Team kickoff" @bind="editor.Title" />
+                <RadzenTextBox Name="Title" @bind-Value="@editor.Title"
+                               Placeholder="e.g. Team kickoff" Style="width: 100%" />
             </div>
 
             <div class="field">
                 <label for="event-description">Description</label>
-                <textarea id="event-description" rows="4" placeholder="Brief description (optional)" @bind="editor.Description"></textarea>
+                <RadzenTextArea Name="Description" @bind-Value="@editor.Description" Rows="4"
+                                Placeholder="Brief description (optional)" Style="width: 100%" />
             </div>
 
             <div class="date-toggle-row">
                 <div class="field">
                     <label for="event-start">Date</label>
-                    <input id="event-start" type="date" @bind="editor.Start" @bind:format="yyyy-MM-dd" />
+                    <RadzenDatePicker TValue="DateTime" Name="Start" @bind-Value="@editor.Start"
+                                      DateFormat="MMM d, yyyy" Style="width: 100%" />
                 </div>
                 <div class="field toggle-field">
                     <label>All Day</label>
-                    <button class="event-switch @(editor.AllDay ? "is-on" : null)"
-                        type="button" role="switch" aria-checked="@editor.AllDay"
-                        @onclick="() => editor.AllDay = !editor.AllDay"><span></span></button>
+                    <RadzenSwitch TValue="bool" @bind-Value="@editor.AllDay" />
                 </div>
             </div>
 
             <div class="modal-actions">
-                <button class="secondary-action" type="button" @onclick="CloseEditor">Cancel</button>
-                <button class="primary-action" type="button" disabled="@isSaving" @onclick="SaveEditor">
-                    @(isSaving ? "Saving…" : editorMode == EditorMode.Create ? "Add Event" : "Save Changes")
-                </button>
-            </div>
-        </section>
-    </div>
-}
-
-@if (pendingDelete is not null)
-{
-    <div class="modal-layer" role="presentation" @onclick="CloseDelete">
-        <section class="delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" @onclick:stopPropagation>
-            <div class="delete-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
-            </div>
-            <h2 id="delete-title">Delete event?</h2>
-            <p><strong>@pendingDelete.Title</strong> will be permanently removed.</p>
-            @if (deleteError is not null)
-            {
-                <div class="modal-error" role="alert">@deleteError</div>
-            }
-            <div class="modal-actions">
-                <button class="secondary-action" type="button" @onclick="CloseDelete">Cancel</button>
-                <button class="danger-action" type="button" disabled="@isDeleting" @onclick="DeleteEvent">
-                    @(isDeleting ? "Deleting…" : "Delete")
-                </button>
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined"
+                              Click="@CloseEditor" Disabled="@isSaving" />
+                <RadzenButton Text="@(editorMode == EditorMode.Create ? "Add Event" : "Save Changes")"
+                              Icon="save" Click="@SaveEditor" Disabled="@isSaving" IsBusy="@isSaving" />
             </div>
         </section>
     </div>
@@ -149,12 +165,10 @@
     private string? loadError;
     private EventDto editor = NewEditor();
     private EditorMode? editorMode;
+    private EventView activeView = EventView.List;
     private Guid editingId;
     private string? editorError;
     private bool isSaving;
-    private Event? pendingDelete;
-    private string? deleteError;
-    private bool isDeleting;
 
     protected override async Task OnInitializedAsync() => await LoadEvents();
 
@@ -168,7 +182,7 @@
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Failed to load events: {ex}");
-            loadError = "The event list could not be loaded. Make sure the Web API is running, then refresh the page.";
+            loadError = "The event list could not be loaded. Make sure the Web API is running, then try again.";
         }
     }
 
@@ -194,6 +208,14 @@
         editorError = null;
     }
 
+    private void OnAppointmentSelect(SchedulerAppointmentSelectEventArgs<Event> args)
+    {
+        if (args.Data is not null)
+        {
+            OpenEdit(args.Data);
+        }
+    }
+
     private void CloseEditor()
     {
         if (!isSaving)
@@ -205,19 +227,20 @@
 
     private async Task SaveEditor()
     {
-        if (string.IsNullOrWhiteSpace(editor.Title))
+        if (editorMode is null || string.IsNullOrWhiteSpace(editor.Title))
         {
             editorError = "A title is required.";
             return;
         }
 
+        var savedMode = editorMode.Value;
         isSaving = true;
         editorError = null;
 
         try
         {
             editor.End = editor.Start.Date.AddDays(1);
-            var response = editorMode == EditorMode.Create
+            var response = savedMode == EditorMode.Create
                 ? await Http.PostAsJsonAsync("api/Events", editor)
                 : await Http.PutAsJsonAsync($"api/Events/{editingId}", editor);
 
@@ -229,6 +252,9 @@
 
             editorMode = null;
             await LoadEvents();
+            NotificationService.Notify(NotificationSeverity.Success,
+                savedMode == EditorMode.Create ? "Event added" : "Event updated",
+                "Your changes have been saved.", 3000);
         }
         catch (Exception ex)
         {
@@ -241,70 +267,50 @@
         }
     }
 
-    private async Task ToggleAllDay(Event evt)
+    private async Task SetAllDay(Event evt, bool allDay)
     {
+        var previousValue = evt.AllDay;
+        evt.AllDay = allDay;
         var request = new EventDto
         {
             Title = evt.Title,
             Description = evt.Description,
             Start = evt.Start,
             End = evt.End,
-            AllDay = !evt.AllDay
+            AllDay = allDay
         };
 
         try
         {
             var response = await Http.PutAsJsonAsync($"api/Events/{evt.Id}", request);
             response.EnsureSuccessStatusCode();
-            evt.AllDay = request.AllDay;
+            NotificationService.Notify(NotificationSeverity.Success, "Event updated", evt.Title, 2500);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            loadError = "The event could not be updated.";
+            evt.AllDay = previousValue;
+            NotificationService.Notify(NotificationSeverity.Error, "Update failed", "The event could not be updated.");
         }
     }
 
-    private void OpenDelete(Event evt)
+    private async Task ConfirmDeleteEvent(Event evt)
     {
-        pendingDelete = evt;
-        deleteError = null;
-    }
-
-    private void CloseDelete()
-    {
-        if (!isDeleting)
-        {
-            pendingDelete = null;
-            deleteError = null;
-        }
-    }
-
-    private async Task DeleteEvent()
-    {
-        if (pendingDelete is null)
-        {
-            return;
-        }
-
-        isDeleting = true;
-        deleteError = null;
+        var confirmed = await DialogService.Confirm($"'{evt.Title}' will be permanently removed.", "Delete event?",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed is not true) return;
 
         try
         {
-            var response = await Http.DeleteAsync($"api/Events/{pendingDelete.Id}");
+            var response = await Http.DeleteAsync($"api/Events/{evt.Id}");
             response.EnsureSuccessStatusCode();
-            events?.Remove(pendingDelete);
-            pendingDelete = null;
+            events?.Remove(evt);
+            NotificationService.Notify(NotificationSeverity.Success, "Event deleted", evt.Title, 3000);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            deleteError = "The event could not be deleted. Please try again.";
-        }
-        finally
-        {
-            isDeleting = false;
+            NotificationService.Notify(NotificationSeverity.Error, "Delete failed", "The event could not be deleted.");
         }
     }
 
@@ -317,4 +323,5 @@
     }
 
     private enum EditorMode { Create, Edit }
+    private enum EventView { List, Calendar }
 }

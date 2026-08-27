@@ -1,7 +1,202 @@
 ﻿@page "/"
+@inject BlazorApp.Services.ITaskApiClient TaskClient
+@inject HttpClient Http
+
 
 <PageTitle>Dashboard · ScheduleGo</PageTitle>
 
-<h1>Dashboard in progress</h1>
+<section class="dashboard-page">
+	<header>
+		<h1>Dashboard</h1>
+		<p>An overview of your schedule and tasks.</p>
+	</header>
 
-<p>The ScheduleGo dashboard is currently a work in progress.</p>
+	@if (isLoading)
+	{
+		<RadzenProgressBarCircular
+			Mode="ProgressBarMode.Indeterminate"
+			ShowValue="false"/>
+
+			<p>Loading dashboard...</p>
+	}
+	else if(loadError is not null)
+	{
+		<div class="alert alert-danger">
+			@loadError
+		</div>
+	}
+    else
+    {
+        <div class="dashboard-statistics">
+            <RadzenCard>
+                <span>Total tasks</span>
+                <h2>@tasks.Count</h2>
+            </RadzenCard>
+
+            <RadzenCard>
+                <span>Pending</span>
+                <h2>@PendingTaskCount</h2>
+            </RadzenCard>
+
+            <RadzenCard>
+                <span>Completed</span>
+                <h2>@CompletedTaskCount</h2>
+            </RadzenCard>
+
+            <RadzenCard>
+                <span>Upcoming events</span>
+                <h2>@UpcomingEventCount</h2>
+            </RadzenCard>
+        </div>
+
+        <RadzenCard class="completion-card">
+            <h2>Task progress</h2>
+
+            <RadzenProgressBar Value="@CompletionPercentage"
+                               ShowValue="true"
+                               Unit="%" />
+
+            <p>
+                @CompletedTaskCount of @tasks.Count tasks completed
+            </p>
+        </RadzenCard>
+
+        <div class="dashboard-columns">
+            <RadzenCard>
+                <h2>Upcoming tasks</h2>
+
+                @if (!UpcomingTasks.Any())
+                {
+                    <p>No upcoming tasks.</p>
+                }
+                else
+                {
+                    @foreach (var task in UpcomingTasks.Take(5))
+                    {
+                        <article class="dashboard-list-item">
+                            <div>
+                                <strong>@task.Title</strong>
+                                <span>
+                                    @(task.DueAt?.ToString("MMM d, yyyy") ?? "No due date")
+                                </span>
+                            </div>
+
+                            <RadzenBadge Text="@task.Priority.ToString()"
+                                         BadgeStyle="@GetPriorityStyle(task.Priority)"
+                                         IsPill="true" />
+                        </article>
+                    }
+                }
+
+                <RadzenButton Text="View all tasks"
+                              Icon="arrow_forward"
+                              Path="/tasks"
+                              Variant="Variant.Text" />
+            </RadzenCard>
+
+            <RadzenCard>
+                <h2>Upcoming events</h2>
+
+                @if (!UpcomingEvents.Any())
+                {
+                    <p>No upcoming events.</p>
+                }
+                else
+                {
+                    @foreach (var evt in UpcomingEvents.Take(5))
+                    {
+                        <article class="dashboard-list-item">
+                            <div>
+                                <strong>@evt.Title</strong>
+                                <span>@evt.Start.ToString("MMM d, yyyy")</span>
+                            </div>
+
+                            @if (evt.AllDay)
+                            {
+                                <RadzenBadge Text="All day"
+                                             BadgeStyle="BadgeStyle.Info"
+                                             IsPill="true" />
+                            }
+                        </article>
+                    }
+                }
+
+                <RadzenButton Text="View all events"
+                              Icon="arrow_forward"
+                              Path="/Events"
+                              Variant="Variant.Text" />
+            </RadzenCard>
+        </div>
+    }
+</section>
+
+@code{
+    private List<TodoItemDto> tasks = [];
+    private List<Event> events = [];
+
+    private bool isLoading = true;
+    private string? loadError;
+
+    private int PendingTaskCount =>
+    tasks.Count(task => !task.IsCompleted);
+
+    private int CompletedTaskCount =>
+    tasks.Count(task => task.IsCompleted);
+
+    private int UpcomingEventCount =>
+    events.Count(evt => evt.End >= DateTime.Now);
+
+    private double CompletionPercentage =>
+    tasks.Count == 0
+    ? 0
+    : Math.Round(
+        CompletedTaskCount * 100d / tasks.Count, 1
+    );
+
+    private IEnumerable<TodoItemDto> UpcomingTasks =>
+       tasks
+           .Where(task =>
+               !task.IsCompleted &&
+               task.DueAt.HasValue)
+           .OrderBy(task => task.DueAt);
+
+    private IEnumerable<Event> UpcomingEvents =>
+        events
+            .Where(evt => evt.End >= DateTime.Now)
+            .OrderBy(evt => evt.Start);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var taskRequest = TaskClient.GetAllAsync();
+
+            var eventRequest =
+                Http.GetFromJsonAsync<List<Event>>("api/Events");
+
+            await Task.WhenAll(taskRequest, eventRequest);
+
+            tasks = (await taskRequest).ToList();
+            events = await eventRequest ?? [];
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(exception);
+            loadError = "The dashboard information could not be loaded.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static BadgeStyle GetPriorityStyle(
+        TaskPriority priority) => priority switch
+        {
+            TaskPriority.High => BadgeStyle.Danger,
+            TaskPriority.Low => BadgeStyle.Success,
+            _ => BadgeStyle.Info
+        };
+
+
+}

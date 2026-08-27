@@ -20,7 +20,7 @@ namespace WebApi.Controllers
         [HttpGet]
         public IActionResult GetEvents()
         {
-            var events = context.Events.OrderByDescending(e => e.Id).ToList();
+             var events = context.Events.OrderByDescending(e => e.Id).ToList();
             return Ok(events);
         }
 
