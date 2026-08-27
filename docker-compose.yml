@@ -1,0 +1,36 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: schedulego-db
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+
+    ports:
+      - "1433:1433"
+
+    volumes:
+      - schedulego-data:/var/opt/mssql
+
+
+  api:
+    build:
+      context: .
+      dockerfile: WebApi/Dockerfile
+
+    container_name: schedulego-api
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=db,1433;Database=DB22;User Id=sa;Password=ScheduleGo123!;TrustServerCertificate=True;Encrypt=False"
+
+    ports:
+      - "5200:8080"
+
+    depends_on:
+      - db
+
+
+volumes:
+  schedulego-data:

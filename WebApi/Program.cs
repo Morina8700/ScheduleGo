@@ -42,4 +42,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapGet("/", () => "ScheduleGo API is running");
+
 app.Run();
