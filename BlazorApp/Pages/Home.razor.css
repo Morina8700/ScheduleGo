@@ -1,0 +1,17 @@
+/* CSS for Home component */
+
+
+.dashboard-page > header h1 {
+    font-family: "Times New Roman", Times, serif;
+    font-size: clamp(2.2rem, 4vw, 3rem);
+    font-weight: 700;
+    color: #131b31;
+    margin-bottom: 6px;
+}
+
+.dashboard-page > header p {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 1.1rem;
+    color: #68758d;
+    margin: 0;
+}

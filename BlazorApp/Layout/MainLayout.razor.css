@@ -27,11 +27,21 @@
     display: inline-flex;
     align-items: center;
     gap: 12px;
-    color: #11182b;
     font-size: 1.18rem;
     font-weight: 700;
     text-decoration: none;
 }
+
+    .eventflow-brand svg {
+        color: #3155d8;
+        width: 28px;
+        height: 28px;
+    }
+
+    .eventflow-brand span {
+        color: #3155d8;
+        font-size: 1.5rem;
+    }
 
 .eventflow-logo {
     width: 43px;
